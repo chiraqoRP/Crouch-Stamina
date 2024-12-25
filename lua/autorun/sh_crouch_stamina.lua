@@ -11,8 +11,8 @@ local function GetDuckProgress(ply)
 end
 
 local cf = bit.bor(FCVAR_ARCHIVE, FCVAR_REPLICATED)
-local enabled = CreateConVar("sv_crouch_stamina", 1, cf, "", 0, 1)
-local sv_timebetweenducks = CreateConVar("sv_timebetweenducks", 0, cf, "", 0)
+local enabled = CreateConVar("sv_crouch_stamina", 1, cf, "Sets whether crouch stamina is enabled or not.", 0, 1)
+local sv_timebetweenducks = CreateConVar("sv_timebetweenducks", 0, cf, "Sets the minimum time players must wait before being allowed to crouch again.", 0)
 
 local function DuckingEnabled(ply)
     if !enabled:GetBool() then
@@ -58,7 +58,7 @@ hook.Add("StartCommand", "CrouchStamina", function(ply, cmd)
     cmd:RemoveKey(IN_DUCK)
 end)
 
-local get_sv_crouch_spam_penalty = CreateConVar("sv_crouch_spam_penalty", 2.0, cf, "", 0)
+local get_sv_crouch_spam_penalty = CreateConVar("sv_crouch_spam_penalty", 2.0, cf, "Modifies how much stamina is lost when crouching.", 0)
 
 -- HACK: IN_BULLRUSH isn't used anywhere.
 -- We use it to store the "raw" value of whether IN_DUCK was held, before it is modified by code.
