@@ -64,6 +64,8 @@ local get_sv_crouch_spam_penalty = CreateConVar("sv_crouch_spam_penalty", 2.0, c
 -- We use it to store the "raw" value of whether IN_DUCK was held, before it is modified by code.
 -- This way when m_nButtons is copied to m_nOldButtons we can tell if duck was pressed or released on the next frame.
 local IN_RAWDUCK = IN_BULLRUSH
+local moveRW = false
+local rwSpeed = false
 
 hook.Add("Move", "CrouchStamina", function(ply, mv)
     if !enabled:GetBool() then
@@ -71,7 +73,20 @@ hook.Add("Move", "CrouchStamina", function(ply, mv)
     end
 
     local speedMul = math.Remap(ply:GetNW2Float("DuckSpeed"), CS_PLAYER_DUCK_SPEED_IDEAL, 0, 0, CS_PLAYER_DUCK_SPEED_IDEAL)
-    local duckSpeed = DEFAULT_DUCK_SPEED + speedMul * 0.070
+
+
+    if moveRW == false then
+        moveRW = GetConVar("sv_kait_enabled") or GetConVar("kait_movement_enabled")
+        rwSpeed = GetConVar("sv_kait_crouching_speed") or GetConVar("kait_crouching_speed")
+    end
+
+    local curDuckSpeed = DEFAULT_DUCK_SPEED
+
+    if moveRW and moveRW:GetBool() then
+        curDuckSpeed = rwSpeed:GetFloat()
+    end
+
+    local duckSpeed = curDuckSpeed + speedMul * 0.070
 
     if mv:KeyPressed(IN_DUCK) then
         ply:SetDuckSpeed(duckSpeed)
