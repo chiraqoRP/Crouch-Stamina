@@ -12,7 +12,7 @@ end
 
 local cf = bit.bor(FCVAR_ARCHIVE, FCVAR_REPLICATED)
 local enabled = CreateConVar("sv_crouch_stamina", 1, cf, "Sets whether crouch stamina is enabled or not.", 0, 1)
-local sv_timebetweenducks = CreateConVar("sv_timebetweenducks", 0, cf, "Sets the minimum time players must wait before being allowed to crouch again.", 0)
+local sv_timebetweenducks = CreateConVar("sv_crouch_stamina_cooldown", 0, cf, "Sets the minimum time players must wait before being allowed to crouch again.", 0)
 
 local function DuckingEnabled(ply)
     if !enabled:GetBool() then
@@ -20,7 +20,7 @@ local function DuckingEnabled(ply)
     end
 
     -- If mashing duck key too much, treat as unpressed to avoid being able to "camp" in half-ducked positions by pressing/releasing near a target height.
-    -- HACK: Because of float imprecision(?) duckProgress == 0 seems to always return false. Don't ask why.
+    -- HACK: Because of float imprecision(?) duckProgress == 0 seems to always return false and tolerance checks do nothing. Don't ask why.
     if ply:GetNW2Float("DuckSpeed") < 1.5 and math.abs(GetDuckProgress(ply)) <= 0.05 then
         return false
     end
@@ -58,6 +58,8 @@ hook.Add("StartCommand", "CrouchStamina", function(ply, cmd)
     cmd:RemoveKey(IN_DUCK)
 end)
 
+local DUCK_SPEED_MUL = 0.07
+local slow_movement = CreateConVar("sv_crouch_stamina_slow_movement", 0, cf, "Slows movement by using crouch stamina.", 0, 1)
 local get_sv_crouch_spam_penalty = CreateConVar("sv_crouch_spam_penalty", 2.0, cf, "Modifies how much stamina is lost when crouching.", 0)
 
 -- HACK: IN_BULLRUSH isn't used anywhere.
@@ -67,13 +69,30 @@ local IN_RAWDUCK = IN_BULLRUSH
 local moveRW = false
 local rwSpeed = false
 
+hook.Add("SetupMove", "CrouchStamina.Slow", function(ply, mv, cmd)
+    if !slow_movement:GetBool() then
+        return
+    end
+
+    local mul = math.max(ply:GetNW2Float("DuckSpeed") / CS_PLAYER_DUCK_SPEED_IDEAL, 0.5)
+
+    if mul == 1 then
+        return
+    end
+
+    cmd:SetForwardMove(cmd:GetForwardMove() * mul)
+    cmd:SetSideMove(cmd:GetSideMove() * mul)
+
+    mv:SetMaxClientSpeed(mv:GetMaxClientSpeed() * mul)
+    mv:SetMaxSpeed(mv:GetMaxClientSpeed() * mul * (ply:Crouching() and ply:GetCrouchedWalkSpeed() or 1))
+end)
+
 hook.Add("Move", "CrouchStamina", function(ply, mv)
     if !enabled:GetBool() then
         return
     end
 
     local speedMul = math.Remap(ply:GetNW2Float("DuckSpeed"), CS_PLAYER_DUCK_SPEED_IDEAL, 0, 0, CS_PLAYER_DUCK_SPEED_IDEAL)
-
 
     if moveRW == false then
         moveRW = GetConVar("sv_kait_enabled") or GetConVar("kait_movement_enabled")
@@ -86,7 +105,7 @@ hook.Add("Move", "CrouchStamina", function(ply, mv)
         curDuckSpeed = rwSpeed:GetFloat()
     end
 
-    local duckSpeed = curDuckSpeed + speedMul * 0.070
+    local duckSpeed = curDuckSpeed + (speedMul * DUCK_SPEED_MUL)
 
     if mv:KeyPressed(IN_DUCK) then
         ply:SetDuckSpeed(duckSpeed)
