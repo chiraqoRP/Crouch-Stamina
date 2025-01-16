@@ -1,15 +1,21 @@
 -- Global var for third-party scripts.
 CrouchStamina = true
 
+local PLAYER, ENTITY = FindMetaTable("Player"), FindMetaTable("Entity")
+local pGetViewOffset = PLAYER.GetViewOffset
+local pGetCurrentViewOffset, pGetViewOffsetDucked = PLAYER.GetCurrentViewOffset, PLAYER.GetViewOffsetDucked
+
 -- WORKAROUND: We cannot access m_flDucktime on clientside.
 -- ISSUE: https://github.com/Facepunch/garrysmod-requests/issues/1403
 local function GetDuckProgress(ply)
-    local standingViewOffset, currentViewOffset = ply:GetViewOffset(), ply:GetCurrentViewOffset()
-    local heightDifference = standingViewOffset.z - ply:GetViewOffsetDucked().z
+    local standingViewOffset, currentViewOffset = pGetViewOffset(ply), pGetCurrentViewOffset(ply)
+    local heightDifference = standingViewOffset.z - pGetViewOffsetDucked(ply).z
 
     return (standingViewOffset.z - currentViewOffset.z) / heightDifference
 end
 
+local eGetNW2Float = ENTITY.GetNW2Float
+local eIsFlagSet = ENTITY.IsFlagSet
 local cf = bit.bor(FCVAR_ARCHIVE, FCVAR_REPLICATED)
 local enabled = CreateConVar("sv_crouch_stamina", 1, cf, "Sets whether crouch stamina is enabled or not.", 0, 1)
 local sv_timebetweenducks = CreateConVar("sv_crouch_stamina_cooldown", 0, cf, "Sets the minimum time players must wait before being allowed to crouch again.", 0)
@@ -21,7 +27,7 @@ local function DuckingEnabled(ply)
 
     -- If mashing duck key too much, treat as unpressed to avoid being able to "camp" in half-ducked positions by pressing/releasing near a target height.
     -- HACK: Because of float imprecision(?) duckProgress == 0 seems to always return false and tolerance checks do nothing. Don't ask why.
-    if ply:GetNW2Float("DuckSpeed") < 1.5 and math.abs(GetDuckProgress(ply)) <= 0.05 then
+    if eGetNW2Float(ply, "DuckSpeed", CS_PLAYER_DUCK_SPEED_IDEAL) < 1.5 and math.abs(GetDuckProgress(ply)) <= 0.05 then
         return false
     end
 
@@ -29,7 +35,7 @@ local function DuckingEnabled(ply)
 
     -- After completing a duck/unduck, we can't re-duck for a minimum amount of time.
     -- This is to minimize ugly camera shaking due to immediate duck/un-duck in the air before the above anti-spam code kicks in.
-    if cooldown != 0 and !ply:IsFlagSet(FL_DUCKING) and CurTime() < ply:GetNW2Float("DuckLastTime", 0) + cooldown then
+    if cooldown != 0 and !eIsFlagSet(ply, FL_DUCKING) and CurTime() < eGetNW2Float(ply, "DuckLastTime", 0) + cooldown then
         return false
     end
 
@@ -74,25 +80,32 @@ hook.Add("SetupMove", "CrouchStamina.Slow", function(ply, mv, cmd)
         return
     end
 
-    local mul = math.max(ply:GetNW2Float("DuckSpeed") / CS_PLAYER_DUCK_SPEED_IDEAL, 0.5)
+    local speedMul = math.max(ply:GetNW2Float("DuckSpeed") / CS_PLAYER_DUCK_SPEED_IDEAL, 0.5)
 
-    if mul == 1 then
+    if speedMul == 1 then
         return
     end
 
-    cmd:SetForwardMove(cmd:GetForwardMove() * mul)
-    cmd:SetSideMove(cmd:GetSideMove() * mul)
+    cmd:SetForwardMove(cmd:GetForwardMove() * speedMul)
+    cmd:SetSideMove(cmd:GetSideMove() * speedMul)
 
-    mv:SetMaxClientSpeed(mv:GetMaxClientSpeed() * mul)
-    mv:SetMaxSpeed(mv:GetMaxClientSpeed() * mul * (ply:Crouching() and ply:GetCrouchedWalkSpeed() or 1))
+    mv:SetMaxClientSpeed(mv:GetMaxClientSpeed() * speedMul)
+
+    local crouchMul = (ply:Crouching() and ply:GetCrouchedWalkSpeed() or 1)
+
+    mv:SetMaxSpeed(mv:GetMaxClientSpeed() * speedMul * crouchMul)
 end)
+
+local eSetNW2Float = ENTITY.SetNW2Float
+local eGetNW2Bool, eSetNW2Bool = ENTITY.GetNW2Bool, ENTITY.SetNW2Bool
+local eGetNW2Vector, eSetNW2Vector = ENTITY.GetNW2Vector, ENTITY.SetNW2Vector
 
 hook.Add("Move", "CrouchStamina", function(ply, mv)
     if !enabled:GetBool() then
         return
     end
 
-    local speedMul = math.Remap(ply:GetNW2Float("DuckSpeed"), CS_PLAYER_DUCK_SPEED_IDEAL, 0, 0, CS_PLAYER_DUCK_SPEED_IDEAL)
+    local speedMul = math.Remap(eGetNW2Float(ply, "DuckSpeed", CS_PLAYER_DUCK_SPEED_IDEAL), CS_PLAYER_DUCK_SPEED_IDEAL, 0, 0, CS_PLAYER_DUCK_SPEED_IDEAL)
 
     if moveRW == false then
         moveRW = GetConVar("sv_kait_enabled") or GetConVar("kait_movement_enabled")
@@ -126,36 +139,38 @@ hook.Add("Move", "CrouchStamina", function(ply, mv)
     -- Add duck-spam speed penalty when we press or release the duck key.
     -- (this is the only place that IN_RAWDUCK is checked)
     if bit.band(mv:GetButtons(), IN_RAWDUCK) != bit.band(mv:GetOldButtons(), IN_RAWDUCK) then
-        ply:SetNW2Float("DuckSpeed", math.max(0, ply:GetNW2Float("DuckSpeed") - get_sv_crouch_spam_penalty:GetFloat()))
+        eSetNW2Float(ply, "DuckSpeed", math.max(0, eGetNW2Float(ply, "DuckSpeed", CS_PLAYER_DUCK_SPEED_IDEAL) - get_sv_crouch_spam_penalty:GetFloat()))
     end
 
     -- REFERENCE: https://github.com/SwagSoftware/Kisak-Strike/blob/master/game/shared/cstrike15/cs_gamemovement.cpp#L1069
     -- Reduce duck-spam penalty over time.
-    ply:SetNW2Float("DuckSpeed", math.Approach(ply:GetNW2Float("DuckSpeed"), CS_PLAYER_DUCK_SPEED_IDEAL, engine.TickInterval() * 3.0))
+    eSetNW2Float(ply, "DuckSpeed", math.Approach(eGetNW2Float(ply, "DuckSpeed", CS_PLAYER_DUCK_SPEED_IDEAL), CS_PLAYER_DUCK_SPEED_IDEAL, engine.TickInterval() * 3.0))
 
     local duckAmount = GetDuckProgress(ply)
 
     -- Use the last-known position of full crouch speed to restore crouch speed.
     -- The goal is that moving a sufficient distance should reset crouch speed in an intuitive manner.
-    if ply:GetNW2Float("DuckSpeed") >= CS_PLAYER_DUCK_SPEED_IDEAL then
+    if eGetNW2Float(ply, "DuckSpeed") >= CS_PLAYER_DUCK_SPEED_IDEAL then
         local origin = mv:GetOrigin()
         origin.z = 0
 
-        ply:SetNW2Vector("DuckPos", origin)
+        eSetNW2Vector(ply, "DuckPos", origin)
     elseif duckAmount <= 0 or duckAmount >= 1 then
-        local duckPos = ply:GetNW2Vector("DuckPos", vec2_origin)
+        local duckPos = eGetNW2Vector(ply, "DuckPos", vec2_origin)
         local flDistToLastPositionAtFullCrouchSpeed = duckPos:Distance2DSqr(mv:GetOrigin())
 
         -- if we're sufficiently far from the last full crouch speed location, we can safely restore crouch speed faster.
         if flDistToLastPositionAtFullCrouchSpeed > 128 ^ 2 then
-            ply:SetNW2Float("DuckSpeed", math.Approach(ply:GetNW2Float("DuckSpeed"), CS_PLAYER_DUCK_SPEED_IDEAL, engine.TickInterval() * 6.0))
+            eSetNW2Float(ply, "DuckSpeed", math.Approach(eGetNW2Float(ply, "DuckSpeed"), CS_PLAYER_DUCK_SPEED_IDEAL, engine.TickInterval() * 6.0))
         end
     end
 
+    local isCrouching = eIsFlagSet(ply, FL_DUCKING)
+
     -- REFERENCE: https://github.com/SwagSoftware/Kisak-Strike/blob/master/game/shared/cstrike15/cs_gamemovement.cpp#L949
-    if !ply:IsFlagSet(FL_DUCKING) and ply:GetNW2Bool("WasDucking", false) then
-        ply:SetNW2Float("DuckLastTime", CurTime())
+    if !isCrouching and eGetNW2Bool(ply, "WasDucking", false) then
+        eSetNW2Float(ply, "DuckLastTime", CurTime())
     end
 
-    ply:SetNW2Bool("WasDucking", ply:IsFlagSet(FL_DUCKING))
+    eSetNW2Bool(ply, "WasDucking", isCrouching)
 end)
