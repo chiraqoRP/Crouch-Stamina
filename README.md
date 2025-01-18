@@ -7,7 +7,9 @@ please go ask for https://github.com/Facepunch/garrysmod-requests/issues/1403 to
 # cvars
 * ``sv_crouch_stamina`` - (``0/1``)
   * Sets whether crouch stamina is enabled or not.
-* ``sv_timebetweenducks`` - (``0 <--> float``)
+* ``sv_crouch_stamina_cooldown`` - (``0 <--> float``)
   * Sets the minimum time players must wait before being allowed to crouch again.
-* ``sv_crouch_spam_penalty`` - (``0 <--> float``)
+* ``sv_crouch_stamina_spam_penalty`` - (``0 <--> float``)
   * Modifies how much stamina is lost when crouching.
+* ``sv_crouch_stamina_slow_movement`` - (``0/1``)
+  * Slows movement by using crouch stamina.
