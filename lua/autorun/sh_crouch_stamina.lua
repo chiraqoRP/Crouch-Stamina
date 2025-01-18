@@ -67,7 +67,7 @@ end)
 local pGetCrouchedWalkSpeed = PLAYER.GetCrouchedWalkSpeed
 local DUCK_SPEED_MUL = 0.07
 local slow_movement = CreateConVar("sv_crouch_stamina_slow_movement", 0, cf, "Slows movement by using crouch stamina.", 0, 1)
-local get_sv_crouch_spam_penalty = CreateConVar("sv_crouch_spam_penalty", 2.0, cf, "Modifies how much stamina is lost when crouching.", 0)
+local sv_crouch_spam_penalty = CreateConVar("sv_crouch_stamina_spam_penalty", 2.0, cf, "Modifies how much stamina is lost when crouching.", 0)
 
 -- HACK: IN_BULLRUSH isn't used anywhere.
 -- We use it to store the "raw" value of whether IN_DUCK was held, before it is modified by code.
@@ -140,7 +140,7 @@ hook.Add("Move", "CrouchStamina", function(ply, mv)
     -- Add duck-spam speed penalty when we press or release the duck key.
     -- (this is the only place that IN_RAWDUCK is checked)
     if bit.band(mv:GetButtons(), IN_RAWDUCK) != bit.band(mv:GetOldButtons(), IN_RAWDUCK) then
-        eSetNW2Float(ply, "DuckSpeed", math.max(0, eGetNW2Float(ply, "DuckSpeed", CS_PLAYER_DUCK_SPEED_IDEAL) - get_sv_crouch_spam_penalty:GetFloat()))
+        eSetNW2Float(ply, "DuckSpeed", math.max(0, eGetNW2Float(ply, "DuckSpeed", CS_PLAYER_DUCK_SPEED_IDEAL) - sv_crouch_spam_penalty:GetFloat()))
     end
 
     -- REFERENCE: https://github.com/SwagSoftware/Kisak-Strike/blob/master/game/shared/cstrike15/cs_gamemovement.cpp#L1069
