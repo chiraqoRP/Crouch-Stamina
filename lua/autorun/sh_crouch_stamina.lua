@@ -64,6 +64,7 @@ hook.Add("StartCommand", "CrouchStamina", function(ply, cmd)
     cmd:RemoveKey(IN_DUCK)
 end)
 
+local pGetCrouchedWalkSpeed = PLAYER.GetCrouchedWalkSpeed
 local DUCK_SPEED_MUL = 0.07
 local slow_movement = CreateConVar("sv_crouch_stamina_slow_movement", 0, cf, "Slows movement by using crouch stamina.", 0, 1)
 local get_sv_crouch_spam_penalty = CreateConVar("sv_crouch_spam_penalty", 2.0, cf, "Modifies how much stamina is lost when crouching.", 0)
@@ -91,7 +92,7 @@ hook.Add("SetupMove", "CrouchStamina.Slow", function(ply, mv, cmd)
 
     mv:SetMaxClientSpeed(mv:GetMaxClientSpeed() * speedMul)
 
-    local crouchMul = (ply:Crouching() and ply:GetCrouchedWalkSpeed() or 1)
+    local crouchMul = eIsFlagSet(ply, FL_DUCKING) and pGetCrouchedWalkSpeed(ply) or 1
 
     mv:SetMaxSpeed(mv:GetMaxClientSpeed() * speedMul * crouchMul)
 end)
